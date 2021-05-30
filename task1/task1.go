@@ -2,19 +2,19 @@ package main
 
 import (
 	"database/sql"
-	"log"
+	// "log"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var dbpath = "./task1/data.db"
-var out = log.Println // alias cuz why not :-/
+// var out = log.Println // alias cuz why not :-/
 
-// var out = nothing
-// func nothing(v ...interface{}) {
-// 	return
-// }
+var out = nothing
+func nothing(v ...interface{}) {
+	return
+}
 
 type user struct {
 	roll int
@@ -70,15 +70,15 @@ func createTable(db *sql.DB) {
 }
 
 func feedData(db *sql.DB, roll int, name string) {
-	// validate data if u wanna, say only ug-y20 roll
-	if roll > 200000 && roll < 201500 {
+	// // validate data if u wanna, say only ug-y20 roll
+	// if roll > 200000 && roll < 201500 {
 		dt := user{}
 		dt.name = name
 		dt.roll = roll
 		insertIT(db, dt)
-	} else {
-		out("Only y20 plij")
-	}
+	// } else {
+	// 	out("Only y20 plij")
+	// }
 }
 
 func insertIT(db *sql.DB, dt user) {
