@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -23,6 +24,17 @@ type User struct {
 	Name     string `json:"name" validate:"required" sql:"name"`
 	Email    string `json:"email" sql:"email"`
 	Password string `json:"password" validate:"required" sql:"password"`
+}
+
+type Wallet struct {
+	Roll  int `json:"roll" sql:"roll"`
+	Coins int `json:"coins" sql:"coins"`
+}
+
+type Trnxn struct {
+	From  int `json:"from" sql:"from"`
+	To    int `json:"to" sql:"to"`
+	Coins int `json:"coins" sql:"coins"`
 }
 
 type Claims struct {
@@ -47,6 +59,9 @@ func main() {
 	mux.HandleFunc("/signup", signUp)
 	mux.HandleFunc("/login", Login)
 	mux.HandleFunc("/secretpage", SecretPage)
+	mux.HandleFunc("/reward", Reward)
+	mux.HandleFunc("/transfer", Transfer)
+	mux.HandleFunc("/view", View)
 
 	out("Starting server. Listening on port http://localhost:8080")
 
@@ -70,6 +85,19 @@ func createTable(db *sql.DB) {
 
 	statement.Exec()
 	out("User table created")
+
+	command = `CREATE TABLE IF NOT EXISTS "Wallet" (
+		"sl"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"roll"	INTEGER NOT NULL UNIQUE,
+		"coins"	INTEGER NOT NULL DEFAULT 0,
+		FOREIGN KEY("roll") REFERENCES "User"("roll")
+	);`
+
+	statement, err = db.Prepare(command)
+	check(err)
+
+	statement.Exec()
+	out("User table created")
 }
 
 func insertIT(dt User) error {
@@ -80,16 +108,31 @@ func insertIT(dt User) error {
 	}
 	defer mydb.Close()
 	// why comment a simple sql :p
-	insert_User := `INSERT INTO "main"."User"
+
+	insert_user := `INSERT INTO "main"."User"
 		("roll", "name", "email", "password", "createdat")
 		VALUES (?, ?, ?, ?, ?);`
 
-	statement, err := mydb.Prepare(insert_User)
+	statement, err := mydb.Prepare(insert_user)
 	if err != nil {
 		return err
 	}
 
 	_, err = statement.Exec(dt.Roll, dt.Name, dt.Email, dt.Password, time.Now().Format(time.RFC1123Z))
+	if err != nil {
+		return err
+	}
+
+	insert_wal := `INSERT INTO "main"."Wallet"
+		("roll")
+		VALUES (?);`
+
+	statement, err = mydb.Prepare(insert_wal)
+	if err != nil {
+		return err
+	}
+
+	_, err = statement.Exec(dt.Roll)
 	if err != nil {
 		return err
 	}
@@ -110,6 +153,99 @@ func GetUser(roll int) (User, error) {
 	} else {
 		return usr, nil
 	}
+}
+
+func GetCoins(roll int) (int, error) {
+	mydb, err := sql.Open("sqlite3", dbpath)
+	if err != nil {
+		return -1, err
+	}
+	defer mydb.Close()
+	var coins int
+	err = mydb.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&coins)
+	if err != nil {
+		return -1, err
+	} else {
+		return coins, nil
+	}
+}
+
+func RewardCoins(x Wallet) error {
+	mydb, err := sql.Open("sqlite3", dbpath)
+	if err != nil {
+		return err
+	}
+	defer mydb.Close()
+
+	tx, err := mydb.Begin()
+	if err != nil {
+		return err
+	}
+
+	upd := `UPDATE "main"."Wallet" 
+		SET coins= coins + ? 
+		WHERE "roll"=?;;`
+
+	statement, err := tx.Prepare(upd)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = statement.Exec(x.Coins, x.Roll)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit()
+
+	return err
+}
+
+func TransferCoins(t Trnxn) error {
+	mydb, err := sql.Open("sqlite3", dbpath)
+	if err != nil {
+		return err
+	}
+	defer mydb.Close()
+
+	tx, err := mydb.Begin()
+	if err != nil {
+		return err
+	}
+	var coins int
+	err = tx.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, t.From).Scan(&coins)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	if coins < t.Coins {
+		tx.Rollback()
+		return errors.New("sender wallet doesn't have that capacity")
+	}
+	upd := `UPDATE "main"."Wallet" 
+		SET coins= coins + ? 
+		WHERE "roll"=?;;`
+
+	statement, err := tx.Prepare(upd)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	_, err = statement.Exec(-t.Coins, t.From)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	_, err = statement.Exec(t.Coins, t.To)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit()
+
+	return err
 }
 
 func hello(res http.ResponseWriter, req *http.Request) {
@@ -194,7 +330,7 @@ func Login(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-		
+
 		tokenString, err := token.SignedString(jwtKey)
 		if err != nil {
 			rw.WriteHeader(http.StatusInternalServerError)
@@ -207,7 +343,7 @@ func Login(rw http.ResponseWriter, req *http.Request) {
 }
 
 func SecretPage(rw http.ResponseWriter, r *http.Request) {
-	
+
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer")
 	if len(splitToken) != 2 {
@@ -216,7 +352,6 @@ func SecretPage(rw http.ResponseWriter, r *http.Request) {
 	}
 	tknStr := strings.TrimSpace(splitToken[1])
 
-	
 	claims := &Claims{}
 
 	tkn, err := jwt.ParseWithClaims(tknStr, claims, JWTKey)
@@ -236,6 +371,99 @@ func SecretPage(rw http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprintf(rw, "Welcome %s!\n", claims.Username)
 	fmt.Fprintf(rw, "You have successfully accessed this secretpage!\n")
+}
+
+func Reward(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		rw.Write([]byte("Only POST request allowed"))
+	} else {
+		dec := json.NewDecoder(req.Body)
+		var t Wallet
+		err := dec.Decode(&t)
+
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "Error in decoding data\n")
+			return
+		}
+
+		if t.Roll == 0 {
+			http.Error(rw, "No Roll found", http.StatusBadRequest)
+			fmt.Fprintf(rw, "Roll Number not found in request\n")
+			return
+		}
+
+		err = RewardCoins(t)
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "annont reward coins\n")
+			return
+		}
+		fmt.Fprint(rw, "Successfully Rewarded\n")
+	}
+}
+
+func Transfer(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		rw.Write([]byte("Only POST request allowed"))
+	} else {
+		dec := json.NewDecoder(req.Body)
+		var t Trnxn
+		err := dec.Decode(&t)
+
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "Error in decoding data\n")
+			return
+		}
+
+		isInvalidRequest := preValidateTrnxn(t, rw)
+		if isInvalidRequest {
+			return
+		}
+
+		err = TransferCoins(t)
+
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "Couldnot Transfer coins\n")
+			return
+		}
+
+		fmt.Fprintf(rw, "Successfuly Transferred\n")
+	}
+}
+
+func View(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		rw.Write([]byte("Only POST request allowed"))
+	} else {
+		dec := json.NewDecoder(req.Body)
+		var t Wallet
+		err := dec.Decode(&t)
+
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "Error in decoding data\n")
+			return
+		}
+
+		if t.Roll == 0 {
+			http.Error(rw, "No Roll found", http.StatusBadRequest)
+			fmt.Fprintf(rw, "Roll Number not found in request\n")
+			return
+		}
+
+		t.Coins, err = GetCoins(t.Roll)
+
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(rw, "Error in Fetching Coins\n")
+			return
+		}
+
+		fmt.Fprintf(rw, "Roll %d has %d coin(s)\n", t.Roll, t.Coins)
+	}
 }
 
 func validateUser(err error, rw http.ResponseWriter, t User) bool {
@@ -281,6 +509,25 @@ func validateCredentials(t User, rw http.ResponseWriter) bool {
 	if t.Password == "" {
 		http.Error(rw, "No Password found", http.StatusBadRequest)
 		fmt.Fprintf(rw, "Password Number not found\n")
+		return true
+	}
+	return false
+}
+
+func preValidateTrnxn(t Trnxn, rw http.ResponseWriter) bool {
+	if t.From == 0 {
+		http.Error(rw, "No Sender found", http.StatusBadRequest)
+		fmt.Fprintf(rw, "Sender Roll Number not found in request\n")
+		return true
+	}
+	if t.To == 0 {
+		http.Error(rw, "No Reciever found", http.StatusBadRequest)
+		fmt.Fprintf(rw, "Reciever Roll Number not found in request\n")
+		return true
+	}
+	if t.Coins < 0 {
+		http.Error(rw, "Coins should be positive", http.StatusBadRequest)
+		fmt.Fprintf(rw, "positive coins needed in request\n")
 		return true
 	}
 	return false
