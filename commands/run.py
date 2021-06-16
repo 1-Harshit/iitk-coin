@@ -5,6 +5,7 @@ import requests
 def main():
     infile = open("/home/salazar/data.json", "r")
     line = infile.readline()
+    infile.close()
     full = json.loads(line)
 
     for entry in full:
