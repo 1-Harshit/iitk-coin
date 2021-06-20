@@ -18,6 +18,7 @@ import (
 var dbpath = "./data.db"
 var out = log.Println // alias cuz why not :-/
 var jwtKey = []byte("a5=?4K59Wnk=k#cYwG@ZZwsM56rVFDew")
+var Mydb *sql.DB
 
 type User struct {
 	Roll     int    `json:"roll" validate:"required" sql:"roll"`
@@ -44,14 +45,13 @@ type Claims struct {
 
 func main() {
 
-	out("let's go!")
-
-	mydb, err := sql.Open("sqlite3", dbpath)
+	out("let's Go!")
+	var err error
+	Mydb, err = sql.Open("sqlite3", dbpath)
 	check(err)
-	// defer mydb.Close() // procrastination on purpose aka defer
 
-	// make the table 'User'
-	createTable(mydb)
+	// make the table 'User' and 'Wallet'
+	createTable()
 
 	mux := http.NewServeMux()
 
@@ -69,7 +69,7 @@ func main() {
 	check(err)
 }
 
-func createTable(db *sql.DB) {
+func createTable() {
 
 	command := `CREATE TABLE IF NOT EXISTS "User" (
 		"roll"	INTEGER NOT NULL,
@@ -80,11 +80,10 @@ func createTable(db *sql.DB) {
 		PRIMARY KEY("roll")
 	);`
 	// check the command
-	statement, err := db.Prepare(command)
+	statement, err := Mydb.Prepare(command)
 	check(err)
 
 	statement.Exec()
-	out("User table created")
 
 	command = `CREATE TABLE IF NOT EXISTS "Wallet" (
 		"sl"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
@@ -93,27 +92,20 @@ func createTable(db *sql.DB) {
 		FOREIGN KEY("roll") REFERENCES "User"("roll")
 	);`
 
-	statement, err = db.Prepare(command)
+	statement, err = Mydb.Prepare(command)
 	check(err)
 
 	statement.Exec()
-	out("User table created")
+	out("Tables created")
 }
 
 func insertIT(dt User) error {
-
-	mydb, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return err
-	}
-	defer mydb.Close()
-	// why comment a simple sql :p
 
 	insert_user := `INSERT INTO "main"."User"
 		("roll", "name", "email", "password", "createdat")
 		VALUES (?, ?, ?, ?, ?);`
 
-	statement, err := mydb.Prepare(insert_user)
+	statement, err := Mydb.Prepare(insert_user)
 	if err != nil {
 		return err
 	}
@@ -127,7 +119,7 @@ func insertIT(dt User) error {
 		("roll")
 		VALUES (?);`
 
-	statement, err = mydb.Prepare(insert_wal)
+	statement, err = Mydb.Prepare(insert_wal)
 	if err != nil {
 		return err
 	}
@@ -136,18 +128,14 @@ func insertIT(dt User) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 func GetUser(roll int) (User, error) {
 	var usr User
-	mydb, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return usr, err
-	}
-	defer mydb.Close()
 
-	err = mydb.QueryRow(`SELECT "roll", "name", "email", "password" FROM "main"."User" WHERE roll = $1`, roll).Scan(&usr.Roll, &usr.Name, &usr.Email, &usr.Password)
+	err := Mydb.QueryRow(`SELECT "roll", "name", "email", "password" FROM "main"."User" WHERE roll = $1`, roll).Scan(&usr.Roll, &usr.Name, &usr.Email, &usr.Password)
 	if err != nil {
 		return User{}, err
 	} else {
@@ -156,13 +144,9 @@ func GetUser(roll int) (User, error) {
 }
 
 func GetCoins(roll int) (int, error) {
-	mydb, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return -1, err
-	}
-	defer mydb.Close()
+
 	var coins int
-	err = mydb.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&coins)
+	err := Mydb.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&coins)
 	if err != nil {
 		return -1, err
 	} else {
@@ -171,61 +155,47 @@ func GetCoins(roll int) (int, error) {
 }
 
 func RewardCoins(x Wallet) error {
-	mydb, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return err
-	}
-	defer mydb.Close()
-
-	tx, err := mydb.Begin()
-	if err != nil {
-		return err
-	}
 
 	upd := `UPDATE "main"."Wallet" 
 		SET coins= coins + ? 
 		WHERE "roll"=?;;`
 
-	statement, err := tx.Prepare(upd)
+	statement, err := Mydb.Prepare(upd)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
 
-	_, err = statement.Exec(x.Coins, x.Roll)
+	stmt, err := statement.Exec(x.Coins, x.Roll)
 	if err != nil {
-		tx.Rollback()
 		return err
 	}
-	err = tx.Commit()
-
-	return err
+	count, err2 := stmt.RowsAffected() 
+	if err2 != nil {
+		return err2
+	}
+	if count == 0 {
+		return errors.New("no Such roll found")
+	}
+	return nil
 }
 
 func TransferCoins(t Trnxn) error {
-	mydb, err := sql.Open("sqlite3", dbpath)
-	if err != nil {
-		return err
-	}
-	defer mydb.Close()
 
-	tx, err := mydb.Begin()
+	if _, err := GetCoins(t.From); err != nil{
+		return errors.New("invalid sender roll")
+	}
+	if _, err := GetCoins(t.To); err != nil{
+		return errors.New("invalid reciever roll")
+	}
+
+	tx, err := Mydb.Begin()
 	if err != nil {
 		return err
 	}
-	var coins int
-	err = tx.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, t.From).Scan(&coins)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	if coins < t.Coins {
-		tx.Rollback()
-		return errors.New("sender wallet doesn't have that capacity")
-	}
+	
 	upd := `UPDATE "main"."Wallet" 
-		SET coins= coins + ? 
-		WHERE "roll"=?;;`
+		SET coins= coins - $1 
+		WHERE "roll"=$2 AND coins >$1;;`
 
 	statement, err := tx.Prepare(upd)
 	if err != nil {
@@ -233,12 +203,21 @@ func TransferCoins(t Trnxn) error {
 		return err
 	}
 
-	_, err = statement.Exec(-t.Coins, t.From)
+	stmt, err := statement.Exec(t.Coins, t.From)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	_, err = statement.Exec(t.Coins, t.To)
+	count, err2 := stmt.RowsAffected() 
+	if err2 != nil {
+		tx.Rollback()
+		return err2
+	}
+	if count == 0{
+		tx.Rollback()
+		return errors.New("sender wallet doesn't have that capacity")
+	}
+	_, err = statement.Exec(-t.Coins, t.To)
 	if err != nil {
 		tx.Rollback()
 		return err
