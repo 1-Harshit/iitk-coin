@@ -3,87 +3,129 @@ package db
 import (
 	"database/sql"
 	"errors"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	
+
 	c "github.com/1-Harshit/iitk-coin/config"
 )
 
-var dbpath = "./data.db"
+var dbpath string = c.DBpath
 var Mydb *sql.DB
 
+// initialize connection and tables
 func init() {
-	c.Out("let's Go!")
 	var err error
 	Mydb, err = sql.Open("sqlite3", dbpath)
-	check(err)
+	c.Check(err)
 	createTable()
 }
 
+// create table
 func createTable() {
 
+	// contains generic info about User
 	command := `CREATE TABLE IF NOT EXISTS "User" (
-		"roll"	INTEGER NOT NULL,
-		"name"	TEXT NOT NULL,
-		"email"	TEXT NOT NULL UNIQUE,
+		"roll"		INTEGER NOT NULL,
+		"name"		TEXT NOT NULL,
+		"email"		TEXT NOT NULL UNIQUE,
 		"password"	TEXT NOT NULL,
-		"createdat"	TEXT,
+		"createdat"	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		PRIMARY KEY("roll")
 	);`
-	// check the command
 	statement, err := Mydb.Prepare(command)
-	check(err)
+	c.Check(err)
 
 	statement.Exec()
 
+	// The Wallet information
 	command = `CREATE TABLE IF NOT EXISTS "Wallet" (
-		"sl"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-		"roll"	INTEGER NOT NULL UNIQUE,
-		"coins"	INTEGER NOT NULL DEFAULT 0,
+		"sl"		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"roll"		INTEGER NOT NULL UNIQUE,
+		"coins"		REAL NOT NULL DEFAULT 0,
+		"usrtype" 	INTEGER NOT NULL DEFAULT 0,
+		"batch" 	INTEGER NOT NULL,
 		FOREIGN KEY("roll") REFERENCES "User"("roll")
 	);`
 
 	statement, err = Mydb.Prepare(command)
-	check(err)
+	c.Check(err)
 
 	statement.Exec()
-	c.Out("Tables created")
+
+	// Keep track of all transactions
+	command = `CREATE TABLE IF NOT EXISTS "Transaction" (
+		"tnxno"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"from"	INTEGER NOT NULL,
+		"to"	INTEGER NOT NULL,
+		"sent"	REAL NOT NULL DEFAULT 0,
+		"tax"	REAL NOT NULL DEFAULT 0,
+		"time"	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		"remarks" TEXT,
+		FOREIGN KEY("from") REFERENCES "User"("roll"),
+		FOREIGN KEY("to") REFERENCES "User"("roll")
+	);`
+
+	statement, err = Mydb.Prepare(command)
+	c.Check(err)
+	defer statement.Close()
+	statement.Exec()
 }
 
+// Insert into db
 func InsertIT(dt c.User) error {
+	// begin transaction
+	tx, err := Mydb.Begin()
+	if err != nil {
+		return err
+	}
 
+	// Insert in User
 	insert_user := `INSERT INTO "main"."User"
-		("roll", "name", "email", "password", "createdat")
-		VALUES (?, ?, ?, ?, ?);`
+		("roll", "name", "email", "password")
+		VALUES (?, ?, ?, ?);`
 
-	statement, err := Mydb.Prepare(insert_user)
+	statement, err := tx.Prepare(insert_user)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	_, err = statement.Exec(dt.Roll, dt.Name, dt.Email, dt.Password, time.Now().Format(time.RFC1123Z))
+	_, err = statement.Exec(dt.Roll, dt.Name, dt.Email, dt.Password)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
+	// Insert in Wallet
 	insert_wal := `INSERT INTO "main"."Wallet"
-		("roll")
-		VALUES (?);`
+		("roll", "batch")
+		VALUES (?, ?);`
 
-	statement, err = Mydb.Prepare(insert_wal)
+	statement, err = tx.Prepare(insert_wal)
 	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer statement.Close()
+
+	_, err = statement.Exec(dt.Roll, dt.Batch)
+	if err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	_, err = statement.Exec(dt.Roll)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	// commit changes
+	err = tx.Commit()
+	return err
 }
 
+// Check if the user exists
+func UserExists(roll int) bool {
+	_, err := GetCoins(roll)
+	return err != sql.ErrNoRows
+}
+
+// Get details present in user table
 func GetUser(roll int) (c.User, error) {
 	var usr c.User
 
@@ -95,9 +137,21 @@ func GetUser(roll int) (c.User, error) {
 	}
 }
 
-func GetCoins(roll int) (int, error) {
+// Get details present in wallet table
+func GetWallet(roll int) (c.Wallet, error) {
+	var wal c.Wallet
 
-	var coins int
+	err := Mydb.QueryRow(`SELECT "roll", "coins", "usrtype", "batch" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&wal.Roll, &wal.Coins, &wal.UsrType, &wal.Batch)
+	if err != nil {
+		return c.Wallet{}, err
+	} else {
+		return wal, nil
+	}
+}
+
+func GetCoins(roll int) (float64, error) {
+
+	var coins float64
 	err := Mydb.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&coins)
 	if err != nil {
 		return -1, err
@@ -106,81 +160,157 @@ func GetCoins(roll int) (int, error) {
 	}
 }
 
-func RewardCoins(x c.Wallet) error {
-
-	upd := `UPDATE "main"."Wallet" 
-		SET coins= coins + ? 
-		WHERE "roll"=?;;`
-
-	statement, err := Mydb.Prepare(upd)
-	if err != nil {
-		return err
-	}
-
-	stmt, err := statement.Exec(x.Coins, x.Roll)
-	if err != nil {
-		return err
-	}
-	count, err2 := stmt.RowsAffected() 
-	if err2 != nil {
-		return err2
-	}
-	if count == 0 {
-		return errors.New("no Such roll found")
-	}
-	return nil
-}
-
-func TransferCoins(t c.Trnxn) error {
-
-	if _, err := GetCoins(t.From); err != nil{
-		return errors.New("invalid sender roll")
-	}
-	if _, err := GetCoins(t.To); err != nil{
-		return errors.New("invalid reciever roll")
-	}
+func RewardCoins(x c.Trnxn) error {
 
 	tx, err := Mydb.Begin()
 	if err != nil {
 		return err
 	}
-	
+
 	upd := `UPDATE "main"."Wallet" 
-		SET coins= coins - $1 
-		WHERE "roll"=$2 AND coins >$1;;`
+		SET coins= coins + $1 
+		WHERE "roll"=$2 AND coins+$1<$3;`
 
 	statement, err := tx.Prepare(upd)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
+	defer statement.Close()
 
-	stmt, err := statement.Exec(t.Coins, t.From)
+	stmt, err := statement.Exec(x.Coins, x.To, c.MaxCoins)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	count, err2 := stmt.RowsAffected() 
+
+	count, err2 := stmt.RowsAffected()
 	if err2 != nil {
 		tx.Rollback()
 		return err2
 	}
-	if count == 0{
+	if count == 0 {
+		if UserExists(x.To) {
+			tx.Rollback()
+			return errors.New("max limit of coins for user exeeded")
+		}
 		tx.Rollback()
-		return errors.New("sender wallet doesn't have that capacity")
+		return errors.New("no Such roll found")
 	}
-	_, err = statement.Exec(-t.Coins, t.To)
+	txn_stm := `INSERT INTO "main"."Transaction"
+		("from", "to", "sent", "remarks")
+		VALUES (?, ?, ?, ?);`
+
+	statement1, err := tx.Prepare(txn_stm)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer statement1.Close()
+
+	_, err = statement1.Exec(x.From, x.To, x.Coins, x.Rem)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	err = tx.Commit()
-
 	return err
 }
 
-func check(e error) {
-	if e != nil {
-		panic(e)
+func TransferCoins(t c.Wallet, f *c.Claims) error {
+	if t.UsrType == 1 {
+		return errors.New("frozen account")
+	} else {
+		if t.UsrType == 2 && f.UsrType != 1 {
+			return errors.New("only Gensec and AH can transfer in this account")
+		}
+		if !(EnoughTrans(t.Roll) && EnoughTrans(f.Roll)) {
+			return errors.New("not participated in enough events yet")
+		}
 	}
+
+	tx, err := Mydb.Begin()
+	if err != nil {
+		return err
+	}
+
+	from_st := `UPDATE "main"."Wallet" 
+		SET coins= coins - $1 
+		WHERE "roll"=$2 AND coins>=$1;`
+
+	statement, err := tx.Prepare(from_st)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer statement.Close()
+	stmt, err := statement.Exec(t.Coins, f.Roll)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	count, err2 := stmt.RowsAffected()
+	if err2 != nil {
+		tx.Rollback()
+		return err2
+	}
+	if count == 0 {
+		tx.Rollback()
+		return errors.New("sender wallet doesn't enough capacity")
+	}
+
+	to_st := `UPDATE "main"."Wallet" 
+		SET coins= coins + $1 
+		WHERE "roll"=$2 AND coins+$1<$3;`
+
+	statement1, err := tx.Prepare(to_st)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer statement1.Close()
+	tax := c.CalculateTax(t, f)
+	stmt, err = statement.Exec(t.Coins-tax, t.Roll, c.MaxCoins)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	count, err2 = stmt.RowsAffected()
+	if err2 != nil {
+		tx.Rollback()
+		return err2
+	}
+	if count == 0 {
+		tx.Rollback()
+		return errors.New("max limit of coins for user exeeded")
+	}
+
+	txn_stm := `INSERT INTO "main"."Transaction"
+		("from", "to", "sent", "tax", "remarks")
+		VALUES (?, ?, ?, ?, ?);`
+
+	statement2, err := tx.Prepare(txn_stm)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer statement2.Close()
+
+	_, err = statement1.Exec(f.Roll, t.Roll, t.Coins, tax, t.Rem)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	err = tx.Commit()
+	return err
+}
+
+func EnoughTrans(roll int) bool {
+	count := 0
+	err := Mydb.QueryRow(`SELECT COUNT(*) FROM "main"."Transaction" WHERE roll = $1`, roll).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count >= c.MinEvents
 }

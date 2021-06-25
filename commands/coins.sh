@@ -1,3 +1,3 @@
-read -p "Enter Your Roll No: "  roll
+read -p "Enter Your JW Token: "  JWT
 
-curl --header "Content-Type: application/json"  --request POST  --data '{"roll":'$roll'}'  http://localhost:8080/view
+curl -H "Authorization: Bearer $JWT"  http://localhost:8080/view
