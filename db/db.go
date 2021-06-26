@@ -308,7 +308,7 @@ func TransferCoins(t c.Wallet, f *c.Claims) error {
 
 func EnoughTrans(roll int) bool {
 	count := 0
-	err := Mydb.QueryRow(`SELECT COUNT(*) FROM "main"."Transaction" WHERE roll = $1`, roll).Scan(&count)
+	err := Mydb.QueryRow(`SELECT COUNT(*) FROM "main"."Transaction" WHERE to = $1`, roll).Scan(&count)
 	if err != nil {
 		return false
 	}
