@@ -2,6 +2,8 @@
 **Summer Project 2021**
 ---
 
+Will finish documentation at later date :) thanks for patience 
+
 ### Task 4
 
 - This is a web server with two endpoints `/login` and `/signup` that accepts POST requests.

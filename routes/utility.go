@@ -3,6 +3,7 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
+	"fmt"
 
 	"github.com/1-Harshit/iitk-coin/auth"
 	c "github.com/1-Harshit/iitk-coin/config"
@@ -41,6 +42,8 @@ func GetClaims(reqToken string, rw http.ResponseWriter) (*c.Claims, bool) {
 	}
 	if wal.UsrType != claims.UsrType || wal.Batch != claims.Batch{
 		rw.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintln(rw, wal.UsrType != claims.UsrType , wal.Batch != claims.Batch)
+		fmt.Fprintln(rw, wal.UsrType , claims.UsrType , wal.Batch , claims.Batch)
 		rw.Write(Rsp("Why did u tamper with tokens?", "Please try again"))
 		return nil, true
 	}

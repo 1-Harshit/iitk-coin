@@ -50,6 +50,16 @@ func ValidateReward(t Wallet) string{
 	return ""
 }
 
+func ValidateItem(t Item) string{
+	if t.Name == "" {
+		return "Item Name not found in request"
+	}
+	if t.Value < 0 {
+		return "Positive Value of item needed in request"
+	}
+	return ""
+}
+
 func CalculateTax(t Wallet, f *Claims) float64 {
 	var tax float64
 	if t.Batch == f.Batch {

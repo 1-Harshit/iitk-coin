@@ -47,6 +47,27 @@ type RespToken struct{
 	JwtToken string	`json:"jwttoken"`
 }
 
+type RespData struct{
+	Message	string	`json:"message"`
+	Data 	interface{}	`json:"data"`
+}
+
+type Item struct{
+	ItemNo 	int		`json:"itemNo"`
+	Name	string	`json:"name"`
+	Value	int		`json:"value"`
+}
+
+type Redeem struct {
+	Id		int		`json:"sl"`
+	Roll	int		`json:"roll"`
+	ItemNo	int		`json:"itemNo"`
+	Status	int		`json:"status"`
+	Time	string	`json:"time"`
+	Name	string	`json:"name"`
+	Value	int		`json:"value"`
+}
+
 func Check (e error)  {
 	if e != nil {
 		panic(e)
