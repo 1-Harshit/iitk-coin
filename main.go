@@ -13,24 +13,39 @@ func main() {
 
 	// all endpoints
 	mux.HandleFunc("/", r.Hello)
-
+	
+	// Signup
 	mux.HandleFunc("/signup", r.SignUp)
+	mux.HandleFunc("/signup/otp", r.SignUpOTP)
+
+	// Login
 	mux.HandleFunc("/login", r.Login)
 	mux.HandleFunc("/secretpage", r.SecretPage)
 	
+	// Reward AH Gensec
 	mux.HandleFunc("/reward", r.Reward)
 	
+	// Transfer
 	mux.HandleFunc("/transfer", r.Transfer)
+	mux.HandleFunc("/transfer/otp", r.OTPforTransfer)
 	
-	mux.HandleFunc("/view", r.View)
+	// User's info
+	mux.HandleFunc("/user/info", r.View)
+	mux.HandleFunc("/user/reward", r.ViewReward)
+	mux.HandleFunc("/user/transaction", r.ViewTransaction)
+	mux.HandleFunc("/user/redeem", r.ViewRedeem)
 
 	// Store
 	mux.HandleFunc("/store/list", r.ListItems)
+	// Store AH GenSec
 	mux.HandleFunc("/store/add", r.AddItems)
 	mux.HandleFunc("/store/remove", r.RemoveItems)
 	
-	// redeem
+	
+	// Redeem 
 	mux.HandleFunc("/redeem/request", r.RedeemRequest)
+	mux.HandleFunc("/redeem/request/otp", r.OTPforRedeem)
+	// Redeem AH GenSec
 	mux.HandleFunc("/redeem/list", r.ListRedeemRequest)
 	mux.HandleFunc("/redeem/reject", r.RejectRedeemRequest)
 	mux.HandleFunc("/redeem/approve", r.ApproveRedeemRequest)

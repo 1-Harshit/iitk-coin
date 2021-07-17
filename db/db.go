@@ -52,12 +52,47 @@ func createTable() {
 
 	statement.Exec()
 
+	// The Reward information
+	command = `CREATE TABLE IF NOT EXISTS "Reward" (
+		"rewardID"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"time"		DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		"roll"		INTEGER NOT NULL,
+		"coins"		INTEGER NOT NULL,
+		"status" 	INTEGER NOT NULL DEFAULT 1,
+		"remarks" 	TEXT
+	);`
+	
+
+	statement, err = Mydb.Prepare(command)
+	c.Check(err)
+
+	statement.Exec()
+
+	// Keep track of all transactions
+	command = `CREATE TABLE IF NOT EXISTS "Transactions" (
+		"tnxNo"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"time"	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		"from"	INTEGER NOT NULL,
+		"to"	INTEGER NOT NULL,
+		"sent"	REAL NOT NULL DEFAULT 0,
+		"tax"	REAL NOT NULL DEFAULT 0,
+		"remarks" TEXT,
+		FOREIGN KEY("from") REFERENCES "User"("roll"),
+		FOREIGN KEY("to") REFERENCES "User"("roll")
+	);`
+
+
+	statement, err = Mydb.Prepare(command)
+	c.Check(err)
+
+	statement.Exec()
+
 	// The Item information
 	command = `CREATE TABLE IF NOT EXISTS "Store" (
-		"itemNo"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-		"name"		TEXT NOT NULL,
-		"value"		INTEGER NOT NULL,
-		"status" 	INTEGER NOT NULL DEFAULT 1
+		"itemNo"		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"name"			TEXT NOT NULL,
+		"value"			INTEGER NOT NULL,
+		"isavailable" 	INTEGER NOT NULL DEFAULT 1
 	);`
 
 	statement, err = Mydb.Prepare(command)
@@ -67,7 +102,7 @@ func createTable() {
 	
 	// The Redeem information
 	command = `CREATE TABLE IF NOT EXISTS "Redeem" (
-		"sl"		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"redeemID"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
 		"time"		DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		"roll"		INTEGER NOT NULL,
 		"itemNo"	INTEGER NOT NULL,
@@ -79,18 +114,14 @@ func createTable() {
 	c.Check(err)
 
 	statement.Exec()
-
-	// Keep track of all transactions
-	command = `CREATE TABLE IF NOT EXISTS "Transaction" (
-		"tnxno"	INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
-		"from"	INTEGER NOT NULL,
-		"to"	INTEGER NOT NULL,
-		"sent"	REAL NOT NULL DEFAULT 0,
-		"tax"	REAL NOT NULL DEFAULT 0,
-		"time"	DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		"remarks" TEXT,
-		FOREIGN KEY("from") REFERENCES "User"("roll"),
-		FOREIGN KEY("to") REFERENCES "User"("roll")
+	
+	// OTP
+	command = `CREATE TABLE IF NOT EXISTS "OTPInfo" (
+		"sl"		INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT UNIQUE,
+		"roll"		INTEGER NOT NULL,
+		"otp"		TEXT NOT NULL,
+		"time"		INTEGER NOT NULL,
+		"isUsed"	INTEGER NOT NULL DEFAULT 0
 	);`
 
 	statement, err = Mydb.Prepare(command)
@@ -147,48 +178,8 @@ func InsertIT(dt c.User) error {
 	return err
 }
 
-// Check if the user exists
-func UserExists(roll int) bool {
-	_, err := GetCoins(roll)
-	return err != sql.ErrNoRows
-}
-
-// Get details present in user table
-func GetUser(roll int) (c.User, error) {
-	var usr c.User
-
-	err := Mydb.QueryRow(`SELECT "roll", "name", "email", "password" FROM "main"."User" WHERE roll = $1`, roll).Scan(&usr.Roll, &usr.Name, &usr.Email, &usr.Password)
-	if err != nil {
-		return c.User{}, err
-	} else {
-		return usr, nil
-	}
-}
-
-// Get details present in wallet table
-func GetWallet(roll int) (c.Wallet, error) {
-	var wal c.Wallet
-
-	err := Mydb.QueryRow(`SELECT "roll", "coins", "usrtype", "batch" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&wal.Roll, &wal.Coins, &wal.UsrType, &wal.Batch)
-	if err != nil {
-		return c.Wallet{}, err
-	} else {
-		return wal, nil
-	}
-}
-
-func GetCoins(roll int) (float64, error) {
-
-	var coins float64
-	err := Mydb.QueryRow(`SELECT "coins" FROM "main"."Wallet" WHERE roll = $1`, roll).Scan(&coins)
-	if err != nil {
-		return -1, err
-	} else {
-		return coins, nil
-	}
-}
-
-func RewardCoins(x c.Trnxn) error {
+// Reward a user
+func RewardCoins(x c.Wallet) error {
 
 	tx, err := Mydb.Begin()
 	if err != nil {
@@ -196,7 +187,7 @@ func RewardCoins(x c.Trnxn) error {
 	}
 
 	upd := `UPDATE "main"."Wallet" 
-		SET coins= coins + $1 
+		SET coins = coins + $1 
 		WHERE "roll"=$2 AND coins+$1<$3;`
 
 	statement, err := tx.Prepare(upd)
@@ -206,7 +197,7 @@ func RewardCoins(x c.Trnxn) error {
 	}
 	defer statement.Close()
 
-	stmt, err := statement.Exec(x.Coins, x.To, c.MaxCoins)
+	stmt, err := statement.Exec(x.Coins, x.Roll, c.MaxCoins)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -218,25 +209,28 @@ func RewardCoins(x c.Trnxn) error {
 		return err2
 	}
 	if count == 0 {
-		if UserExists(x.To) {
+		if UserExists(x.Roll) {
 			tx.Rollback()
 			return errors.New("max limit of coins for user exeeded")
 		}
 		tx.Rollback()
 		return errors.New("no Such roll found")
 	}
-	txn_stm := `INSERT INTO "main"."Transaction"
-		("from", "to", "sent", "remarks")
-		VALUES (?, ?, ?, ?);`
 
-	statement1, err := tx.Prepare(txn_stm)
+	// insert into reward
+	redeem_stmt := `INSERT INTO "main"."Reward" 
+		("roll", "coins", "remarks")
+		VALUES (?, ?, ?)
+	;`
+
+	statement1, err := tx.Prepare(redeem_stmt)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	defer statement1.Close()
 
-	_, err = statement1.Exec(x.From, x.To, x.Coins, x.Rem)
+	_, err = statement1.Exec(x.Roll, x.Coins, x.Rem)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -245,6 +239,7 @@ func RewardCoins(x c.Trnxn) error {
 	return err
 }
 
+// Transfer coins to another user
 func TransferCoins(t c.Wallet, f *c.Claims) error {
 	if t.UsrType == 1 {
 		return errors.New("frozen account")
@@ -334,233 +329,12 @@ func TransferCoins(t c.Wallet, f *c.Claims) error {
 	return err
 }
 
+// if the user can transfer coins
 func EnoughTrans(roll int) bool {
 	count := 0
-	err := Mydb.QueryRow(`SELECT COUNT(*) FROM "main"."Transaction" WHERE to = $1`, roll).Scan(&count)
+	err := Mydb.QueryRow(`SELECT COUNT(*) FROM "main"."Reward" WHERE roll = $1`, roll).Scan(&count)
 	if err != nil {
 		return false
 	}
 	return count >= c.MinEvents
-}
-
-func GetItem(t int) (c.Item, error) {
-	var res c.Item
-	err := Mydb.QueryRow(`SELECT "name", "value" FROM "main"."Store" WHERE itemNo = $1`, t).Scan(&res.Name, &res.Value)
-	if err != nil {
-		return res, err
-	}
-	res.ItemNo = t
-	return res, nil
-}
-
-func GetItems() ([]c.Item, error) {
-	// query
-	row, err := Mydb.Query(`SELECT "itemNo", "name", "value" FROM "main"."Store" WHERE status=1 ORDER BY value`)
-	if err != nil {
-		return nil, err
-	}
-	defer row.Close()
-
-	var AllItems []c.Item
-	// loop thu the records
-	for row.Next() {
-		entry := c.Item{}
-		err = row.Scan(&entry.ItemNo, &entry.Name, &entry.Value)
-		if err != nil {
-			return nil, err
-		}
-		AllItems = append(AllItems, entry)
-	}
-	if err := row.Err(); err != nil {
-        return nil, err
-    }
-	return AllItems, nil
-}
-
-// Insert into db
-func DeleteItems(t c.Item) error {
-	
-	// Insert in Store
-	insert_item := `UPDATE "main"."Store" SET "status"=0 WHERE "itemNo"=?;`
-
-	statement, err := Mydb.Prepare(insert_item)
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(t.ItemNo)
-	
-	return err
-}
-
-func InsertItems(t c.Item) error {
-	
-	// Insert in Store
-	insert_item := `INSERT INTO "main"."Store" ("name", "value")
-		VALUES (?, ?)
-	;`
-
-	statement, err := Mydb.Prepare(insert_item)
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(t.Name, t.Value)
-	
-	return err
-}
-
-func ReqRedeem(t c.Redeem) error {
-	row, err := Mydb.Query(`
-		SELECT Redeem.sl, Redeem.itemNo, Store.value
-		FROM "main"."Redeem" 
-		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
-		WHERE Redeem.status=0 AND Redeem.roll = ?
-		ORDER BY Redeem.time
-	;`, t.Roll)
-
-	if err != nil {
-		return err
-	}
-	defer row.Close()
-	total := 0
-	// loop thu the records
-	for row.Next() {
-		entry := c.Redeem{}
-		err = row.Scan(&entry.Id, &entry.ItemNo, &entry.Value)
-		if err != nil {
-			return err
-		}
-		total += entry.Value
-	}
-	if err := row.Err(); err != nil {
-        return err
-    }
-	itm, _ := GetItem(t.ItemNo)
-	coins, _ := GetCoins(t.Roll)
-	if int(coins) < total+itm.Value {
-		return errors.New("not enough coins")
-	}
-
-	// Insert in Store
-	stm := `INSERT INTO "main"."Redeem" ("roll", itemNo")
-		VALUES (?, ?)
-	;`
-
-	statement, err := Mydb.Prepare(stm)
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(t.Roll, t.ItemNo)
-	
-	return err
-}
-
-func GetReedem() ([]c.Redeem, error) {
-	// query
-	row, err := Mydb.Query(`
-		SELECT Redeem.sl, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
-		FROM "main"."Redeem" 
-		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
-		WHERE Redeem.status=0 
-		ORDER BY Redeem.time
-	;`)
-	if err != nil {
-		return nil, err
-	}
-	defer row.Close()
-
-	var AllItems []c.Redeem
-	// loop thu the records
-	for row.Next() {
-		entry := c.Redeem{}
-		err = row.Scan(&entry.Id, &entry.Time, &entry.Roll, &entry.ItemNo, &entry.Name, &entry.Value)
-		if err != nil {
-			return nil, err
-		}
-		AllItems = append(AllItems, entry)
-	}
-	if err := row.Err(); err != nil {
-        return nil, err
-    }
-	return AllItems, nil
-}
-
-func RejectRedeem(t int) error {
-	
-	statement, err := Mydb.Prepare(`UPDATE "main"."Redeem" SET "status"=-1 WHERE "sl"=?;`)
-	if err != nil {
-		return err
-	}
-
-	_, err = statement.Exec(t)
-	
-	return err
-}
-
-func ApproveRedeem(t int) error {
-	
-	row := Mydb.QueryRow(`
-		SELECT Redeem.sl, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
-		FROM "main"."Redeem" 
-		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
-		WHERE Redeem.status=0 AND Redeem.sl = ?
-	;`, t)
-	redm := c.Redeem{}
-	err := row.Scan(&redm.Id, &redm.Time, &redm.Roll, &redm.ItemNo, &redm.Name, &redm.Value)
-	if err != nil {
-		return err
-	}
-
-	tx, err := Mydb.Begin()
-	if err != nil {
-		return err
-	}
-
-	from_st := `UPDATE "main"."Wallet" 
-		SET coins= coins - $1 
-		WHERE "roll"=$2 AND coins>=$1;`
-
-	statement, err := tx.Prepare(from_st)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer statement.Close()
-
-	stmt, err := statement.Exec(redm.Value, redm.Roll)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	count, err2 := stmt.RowsAffected()
-	if err2 != nil {
-		tx.Rollback()
-		return err2
-	}
-	if count == 0 {
-		tx.Rollback()
-		return errors.New("sender wallet doesn't enough capacity")
-	}
-
-
-	txn_stm := `INSERT INTO "main"."Transaction"
-		("from", "to", "sent", "tax", "remarks")
-		VALUES (?, ?, ?, ?, ?);`
-
-	statement2, err := tx.Prepare(txn_stm)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer statement2.Close()
-
-	_, err = statement2.Exec(redm.Roll, 200433, redm.Value, redm.Value, "Reedeem amount")
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
-	return err
 }

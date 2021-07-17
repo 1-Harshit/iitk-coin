@@ -74,6 +74,9 @@ func RspToken(err string, message string, jwt string) []byte {
 }
 
 func ValidateTransfer(x *c.Wallet) string {
+	if x.Roll <= 0 {
+		return "Roll Number is not valid"
+	}
 	wal, err := db.GetWallet(x.Roll)
 	if err != nil{
 		return err.Error() + "No such user found"

@@ -8,13 +8,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func GetJwtToken(usr c.User, usrtpe int) (string, error) {
-	expirationTime := time.Now().Add(5 * time.Minute)
+func GetJwtToken(usr c.User) (string, error) {
+	expirationTime := time.Now().Add(12 * time.Hour)
 
 	claims := &c.Claims{
 		Roll: usr.Roll,
 		Batch: usr.Batch,
-		UsrType: usrtpe,
+		UsrType: usr.UsrType,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 			IssuedAt: time.Now().Unix(),

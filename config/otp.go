@@ -7,11 +7,13 @@ import (
 	"time"
 )
 
+/*
 // Email username
-// var Username string = "..."
+var From string = "..."
 
 // Email password
-// var Password string = "..."
+var Password string = "..."
+*/
 
 // Auth for email
 var auth smtp.Auth
@@ -40,11 +42,13 @@ func init() {
 func Email(usr User, otp string, reason int) string{
 	// why send mail?
 	about := ""
-	if reason == 0{
-		about = "Use this OTP for changing the password"
+	if reason == -1 {
+		about = "Use this OTP for Signing Up"
 	}else if reason == 1 {
-		about = "Use this OTP for Transaction"
+		about = "Use this OTP for changing the password"
 	}else if reason == 2 {
+		about = "Use this OTP for Transaction"
+	}else if reason == 3 {
 		about = "Use this OTP for reedeming koins"
 	}
 
@@ -53,7 +57,7 @@ func Email(usr User, otp string, reason int) string{
 		"To: " + usr.Name + "<" + usr.Email + ">\r\n" +
 		"Subject: [Koins] OTP for Koins\r\n" +
 
-		"From: Koins Automated OTP<mailspenpal@gmail.com>\r\n" + "\r\n" +
+		"From: Koins Automation<mailspenpal@gmail.com>\r\n" + "\r\n" +
 
 		"Hi " + usr.Name + " ("+ fmt.Sprintf("%d",usr.Roll) + ")\r\n\r\n" +
 
@@ -77,9 +81,7 @@ func Email(usr User, otp string, reason int) string{
 	return ""
 }
 
-
-
-
+// Generate random string
 func GenerateOTP() string {
 	n := 10
 	b := make([]byte, n)
@@ -95,6 +97,5 @@ func GenerateOTP() string {
 		cache >>= letterIdxBits
 		remain--
 	}
-
 	return string(b)
 }
