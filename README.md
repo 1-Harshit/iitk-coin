@@ -24,7 +24,7 @@ This repository contains the backend code for the IITK Coin which is a reward ba
 ```bash
 - go version:     go1.16.6 linux/amd64   # https://golang.org/dl/
 - text editor:    VSCode    	         # https://code.visualstudio.com/download
-- terminal:    Zsh               		 # https://ohmyz.sh/
+- terminal:       Zsh                    # https://ohmyz.sh/
 ```
 
 ## Directory Structure
@@ -39,15 +39,17 @@ This repository contains the backend code for the IITK Coin which is a reward ba
 │   ├── otp.go
 │   ├── settings.go
 │   └── validate.go
-├── data.db
 ├── db
 │   ├── db.go
 │   ├── otp.go
 │   ├── redeem.go
 │   └── user.go
+├── Dockerfile
 ├── go.mod
 ├── go.sum
+├── LICENSE
 ├── main.go
+├── Models.png
 ├── README.md
 └── routes
     ├── redeem.go
@@ -55,7 +57,7 @@ This repository contains the backend code for the IITK Coin which is a reward ba
     ├── user.go
     └── utility.go
 
-4 directories, 19 files
+4 directories, 21 files
 ```
 
 ## Usage
