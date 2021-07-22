@@ -82,6 +82,7 @@ func OTPforTransfer(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(Rsp(err.Error(), "Server Error"))
 		return
 	}
+	
 
 	// Check Spam
 	if db.ExceedMaxOTP(t.Roll) {
@@ -90,15 +91,10 @@ func OTPforTransfer(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get OTP
-	t.OTP = c.GenerateOTP()
-
-	if valid := c.Email(t, t.OTP, 2); valid != "" {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(Rsp(valid, "Error in sending Email"))
-	}
+	OTP := c.GenerateOTP()
 
 	// Hash and salt OTP
-	t.OTP = auth.HashAndSalt([]byte(t.OTP))
+	t.OTP = auth.HashAndSalt([]byte(OTP))
 
 	// Insert in DB
 	if valid := db.StoreOTP(t); valid != "" {
@@ -107,6 +103,13 @@ func OTPforTransfer(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// emailing OTP
+	if valid := c.Email(t, OTP, 2); valid != "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write(Rsp(valid, "Error in sending Email"))
+	}
+
+	
 	// Everything went well
 	rw.WriteHeader(http.StatusOK)
 	rw.Write(Rsp("", "email Sent"))

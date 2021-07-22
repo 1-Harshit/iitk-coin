@@ -13,7 +13,7 @@ import (
 
 // Endpoint to View all Items
 // GET aiwehi
-func ListItems(rw http.ResponseWriter, req *http.Request) {
+func ListItems(rw http.ResponseWriter, _ *http.Request) {
 	if c.IsStoreOpen {
 		data, err := db.GetItems()
 		if err != nil {
@@ -170,15 +170,10 @@ func OTPforRedeem(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Get OTP
-	t.OTP = c.GenerateOTP()
-
-	if valid := c.Email(t, t.OTP, 3); valid != "" {
-		rw.WriteHeader(http.StatusBadRequest)
-		rw.Write(Rsp(valid, "Error in sending Email"))
-	}
+	OTP := c.GenerateOTP()
 
 	// Hash and salt OTP
-	t.OTP = auth.HashAndSalt([]byte(t.OTP))
+	t.OTP = auth.HashAndSalt([]byte(OTP))
 
 	// Insert in DB
 	if valid := db.StoreOTP(t); valid != "" {
@@ -187,6 +182,13 @@ func OTPforRedeem(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// emailing OTP
+	if valid := c.Email(t, OTP, 3); valid != "" {
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write(Rsp(valid, "Error in sending Email"))
+	}
+
+	
 	// Everything went well
 	rw.WriteHeader(http.StatusOK)
 	rw.Write(Rsp("", "email Sent"))

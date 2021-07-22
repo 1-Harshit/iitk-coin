@@ -4,7 +4,7 @@
 **SnT Project 2021, Programming Club**
 ---
 
-This repository contains the code for the IITK Coin project done so far.
+This repository contains the backend code for the IITK Coin which is a reward based psuedo currency of IIT Kanpur.
 
 ### Relevant Links
 
@@ -17,6 +17,7 @@ This repository contains the code for the IITK Coin project done so far.
 - [Usage](#usage)
 - [Endpoints](#endpoints)
 - [Models](#models)
+- [Settings](#settings)
 
 ## Development Environment
 
@@ -58,16 +59,23 @@ This repository contains the code for the IITK Coin project done so far.
 ```
 
 ## Usage
+### Use this Repo
 ```bash
-cd $GOPATH/src/github.com/<username>
+mkdir $GOPATH/src/github.com/1-Harshit
+cd $GOPATH/src/github.com/1-Harshit
 git clone https://github.com/1-Harshit/iitk-coin.git
-cd repo
+cd iitk-coin
+```
+```bash
 go run main.go     
-#, or build the program and run the executable
+# or build the program and run the executable
 go build
 ./iitk-coin
 ```
-
+### Use Docker Image
+```bash
+docker run --rm -p 8080:8080 1harshit/iitk-coin
+```
 Output should look like
 
 ```
@@ -183,7 +191,8 @@ curl -H "Authorization: Bearer $JWT" --request GET http://localhost:8080//redeem
 ![Models](Models.png "Database Struct")
 
 
-## about `config/settings.go`
+## Settings
+### about `config/settings.go`
    Some unkown variables are stored there.  
    
    - Path of DB
@@ -195,5 +204,6 @@ curl -H "Authorization: Bearer $JWT" --request GET http://localhost:8080//redeem
    - const IsStoreOpen bool = true
 
 
-Kthnxbye
+Footnotes
 ---
+I'd like to name it **Koins**

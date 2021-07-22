@@ -1,3 +1,6 @@
-config/*cred.go
+config/email_cred.go
 iitk-coin
-commands
+data.db
+commands*
+temp*
+.*
