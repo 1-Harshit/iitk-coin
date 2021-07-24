@@ -1,6 +1,5 @@
 config/email_cred.go
 iitk-coin
 data.db
-commands*
 temp*
 .*

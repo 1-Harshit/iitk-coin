@@ -49,6 +49,20 @@ func Reward(rw http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		// get user
+		user, err := db.GetUser(t.Roll)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in fetching user"))
+			return
+		}
+		// check if user is Gensec or AH
+		if user.UsrType == 1 {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp("GenSec AH Cannot get coins", ""))
+			return
+		}
+
 		// add to db
 		err = db.RewardCoins(t)
 		if err != nil {
@@ -82,12 +96,12 @@ func OTPforTransfer(rw http.ResponseWriter, req *http.Request) {
 		rw.Write(Rsp(err.Error(), "Server Error"))
 		return
 	}
-	
 
 	// Check Spam
 	if db.ExceedMaxOTP(t.Roll) {
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write(Rsp("too frequent otp requests", "please try again after 5 minutes"))
+		return
 	}
 
 	// Get OTP
@@ -107,9 +121,9 @@ func OTPforTransfer(rw http.ResponseWriter, req *http.Request) {
 	if valid := c.Email(t, OTP, 2); valid != "" {
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write(Rsp(valid, "Error in sending Email"))
+		return
 	}
 
-	
 	// Everything went well
 	rw.WriteHeader(http.StatusOK)
 	rw.Write(Rsp("", "email Sent"))
@@ -144,10 +158,11 @@ func Transfer(rw http.ResponseWriter, req *http.Request) {
 		if valid := ValidateTransfer(&t); valid != "" {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp(valid, "Bad Request"))
+			return
 		}
 
 		// check otp
-		hashotp, otpID, err := db.GetOTP(t.Roll)
+		hashotp, otpID, err := db.GetOTP(f.Roll)
 		if err != nil {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp(err.Error(), "Error in fetching OTP"))

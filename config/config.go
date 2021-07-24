@@ -74,7 +74,7 @@ type Redeem struct {
 
 type Reward struct {
 	Time	string `json:"time"`
-	Coins	int    `json:"coins"`
+	Coins	float64    `json:"coins"`
 	Remarks string `json:"remarks"`
 }
 

@@ -309,7 +309,7 @@ func TransferCoins(t c.Wallet, f *c.Claims) error {
 		return errors.New("max limit of coins for user exeeded")
 	}
 
-	txn_stm := `INSERT INTO "main"."Transaction"
+	txn_stm := `INSERT INTO "main"."Transactions"
 		("from", "to", "sent", "tax", "remarks")
 		VALUES (?, ?, ?, ?, ?);`
 

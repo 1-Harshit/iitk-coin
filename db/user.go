@@ -57,7 +57,7 @@ func GetCoins(roll int) (float64, error) {
 
 // Get from Rewards
 func GetUserRewards(roll int) ([]c.Reward, error) {
-	command := `SELECT "time", "coins", "remarks" FROM "main"."Rewards" WHERE "roll" = $1 AND status = 1;`
+	command := `SELECT "time", "coins", "remarks" FROM "main"."Reward" WHERE "roll" = $1 AND status = 1;`
 	statement, err := Mydb.Prepare(command)
 	if err != nil {
 		return nil, err
@@ -82,7 +82,7 @@ func GetUserRewards(roll int) ([]c.Reward, error) {
 
 // Get from Transactions
 func GetUserTransaction(roll int) ([]c.Tnxn, error) {
-	command := `SELECT "time", "from", "to", "sent", "tax", "remarks" FROM "main"."Transactions" WHERE "to" = $1 OR from = $1;`
+	command := `SELECT "time", "from", "to", "sent", "tax", "remarks" FROM "main"."Transactions" WHERE "to" = $1 OR "from" = $1;`
 	statement, err := Mydb.Prepare(command)
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func GetUserTransaction(roll int) ([]c.Tnxn, error) {
 
 func GetUserRedeem(roll int) ([]c.Redeem, error) {
 	command := `
-		SELECT Redeem.sl, Redeem.time, Redeem.roll, Redeem.status, Redeem.itemNo, Store.name, Store.value
+		SELECT Redeem.redeemID, Redeem.time, Redeem.roll, Redeem.status, Redeem.itemNo, Store.name, Store.value
 		FROM "main"."Redeem" 
 		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
 		WHERE Redeem.roll = $1 
@@ -134,4 +134,10 @@ func GetUserRedeem(roll int) ([]c.Redeem, error) {
 	}
 	return redeem, nil
 
+}
+
+// Change password
+func ChangePassword(t c.User) error {
+	_, err := Mydb.Exec(`UPDATE "main"."User" SET password = $1 WHERE roll = $2;`, t.Password, t.Roll)
+	return err
 }

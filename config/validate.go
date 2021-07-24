@@ -9,9 +9,9 @@ func ValidateUserforOTP(t User) string {
 	if t.Roll <= 0 {
 		return "Roll Number not found in request"
 	}
-	if t.Name == "" {
-		return "Name not found in request"
-	}
+	// if t.Name == "" {
+	// 	return "Name not found in request"
+	// }
 	if t.Email == "" {
 		return "Email not found in request"
 	}
@@ -48,6 +48,20 @@ func ValidateUser(t User) string {
 	return ""
 }
 
+// Check non empty request and email
+func ValidatePass(t User) string {
+	if t.Roll <= 0 {
+		return "Roll Number not found in request"
+	}
+	if t.Password == "" {
+		return "Password not found in request"
+	}
+	if t.OTP == "" {
+		return "OTP not found in the request"
+	}
+	return ""
+}
+
 func ValidateCredentials(t User) string {
 	if t.Roll == 0 {
 		return "Roll Number not found in request"
@@ -65,7 +79,7 @@ func ValidateReward(t Wallet) string{
 	if t.Coins < 0 {
 		return "Positive coins needed in request"
 	}
-	if x := 100*t.Coins; x == float64(int(x)){
+	if x := 100*t.Coins; x != float64(int(x)){
 		return "Coins only allowed till two decimal places"
 	}
 	return ""

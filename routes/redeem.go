@@ -23,6 +23,7 @@ func ListItems(rw http.ResponseWriter, _ *http.Request) {
 			}
 			rw.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(rw).Encode(response)
+			return
 		}
 		response := c.RespData{
 			Message: "All active items are listed",
@@ -73,6 +74,7 @@ func AddItems(rw http.ResponseWriter, req *http.Request) {
 		if valid := c.ValidateItem(t); valid != "" {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp(valid, "Bad Request"))
+			return
 		}
 
 		// add to db
@@ -126,6 +128,7 @@ func RemoveItems(rw http.ResponseWriter, req *http.Request) {
 		if t.ItemNo == 0 {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp("Item No not found in request", "Bad Request"))
+			return
 		}
 
 		// add to db
@@ -167,6 +170,7 @@ func OTPforRedeem(rw http.ResponseWriter, req *http.Request) {
 	if db.ExceedMaxOTP(t.Roll) {
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write(Rsp("too frequent otp requests", "please try again after 5 minutes"))
+		return
 	}
 
 	// Get OTP
@@ -186,6 +190,7 @@ func OTPforRedeem(rw http.ResponseWriter, req *http.Request) {
 	if valid := c.Email(t, OTP, 3); valid != "" {
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write(Rsp(valid, "Error in sending Email"))
+		return
 	}
 
 	
@@ -223,6 +228,7 @@ func RedeemRequest(rw http.ResponseWriter, req *http.Request) {
 		if t.ItemNo == 0 {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp("ItemNo not found in request", "Bad Request"))
+			return
 		}
 
 		t.Roll = usr.Roll
@@ -250,7 +256,7 @@ func RedeemRequest(rw http.ResponseWriter, req *http.Request) {
 
 		if err != nil {
 			rw.WriteHeader(http.StatusBadRequest)
-			rw.Write(Rsp(err.Error(), "Couldnot Transfer coins"))
+			rw.Write(Rsp(err.Error(), "Couldnot redeem coins"))
 			return
 		}
 
@@ -286,6 +292,7 @@ func ListRedeemRequest(rw http.ResponseWriter, req *http.Request) {
 		}
 		rw.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(rw).Encode(response)
+		return
 	}
 	response := c.RespData{
 		Message: "All pending requests are listed",
@@ -332,6 +339,7 @@ func RejectRedeemRequest(rw http.ResponseWriter, req *http.Request) {
 		if t.Id == 0 {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp("ID not found in request", "Bad Request"))
+			return
 		}
 
 		// Alter DB
@@ -385,6 +393,7 @@ func ApproveRedeemRequest(rw http.ResponseWriter, req *http.Request) {
 		if t.Id == 0 {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp("ID not found in request", "Bad Request"))
+			return
 		}
 
 		// Alter DB

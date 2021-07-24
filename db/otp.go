@@ -72,6 +72,24 @@ func ExceedMaxOTP(roll int) bool {
 	return count > 2
 }
 
+// count no of otp
+func ExceedMaxOTP_forgotpass(roll int) bool {
+	timestr := time.Now().Add(-7 * 24 * time.Hour).Unix()
+	command := `SELECT COUNT(*) FROM "main"."OTPInfo" WHERE "roll" = ? AND isUsed=0 AND time > ?;`
+
+	statement, err := Mydb.Prepare(command)
+	if err != nil {
+		return false
+	}
+	defer statement.Close()
+	var count int
+	err = statement.QueryRow(roll, timestr).Scan(&count)
+	if err != nil {
+		return false
+	}
+	return count > 2
+}
+
 // Mark otp as used
 func MarkOTP(sl int) error {
 	// Update OTP ID in database

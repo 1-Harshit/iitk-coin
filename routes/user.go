@@ -48,6 +48,7 @@ func SignUpOTP(rw http.ResponseWriter, req *http.Request) {
 		if db.ExceedMaxOTP(t.Roll) {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp("too frequent otp requests", "please try again after 5 minutes"))
+			return
 		}
 
 		// Get OTP
@@ -67,6 +68,7 @@ func SignUpOTP(rw http.ResponseWriter, req *http.Request) {
 		if valid := c.Email(t, OTP, -1); valid != "" {
 			rw.WriteHeader(http.StatusBadRequest)
 			rw.Write(Rsp(valid, "Error in sending Email"))
+			return
 		}
 
 		
@@ -131,6 +133,131 @@ func SignUp(rw http.ResponseWriter, req *http.Request) {
 		// Everything went well
 		rw.WriteHeader(http.StatusOK)
 		rw.Write(Rsp("", fmt.Sprintf("User %s with roll %d is created", t.Name, t.Roll)))
+	}
+}
+// Endpoint to get OTP for Password
+// POST: Roll-int, Email-string
+func ForgotPassOTP(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		rw.Write([]byte("Only POST request allowed"))
+	} else {
+
+		// Input from request body
+		dec := json.NewDecoder(req.Body)
+		var inp c.User
+		err := dec.Decode(&inp)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in Decoding Data"))
+			return
+		}
+
+		// Validate the request if it is empty
+		if valid := c.ValidateUserforOTP(inp); valid != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(valid, "Bad Request"))
+			return
+		}
+		
+		// Get user
+		t, err := db.GetUser(inp.Roll)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "User Doesnot exist"))
+			return
+		}
+
+
+		// Check Spam
+		if db.ExceedMaxOTP_forgotpass(t.Roll) {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp("too frequent otp requests", "please try again after a week"))
+			return
+		}
+
+		// Get OTP
+		OTP := c.GenerateOTP()
+
+		// Hash and salt OTP
+		t.OTP = auth.HashAndSalt([]byte(OTP))
+
+		// Insert in DB
+		if valid := db.StoreOTP(t); valid != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(valid, "Error in Storing OTP"))
+			return
+		}
+
+		// emailing OTP
+		if valid := c.Email(t, OTP, 1); valid != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(valid, "Error in sending Email"))
+			return
+		}
+
+		
+		// Everything went well
+		rw.WriteHeader(http.StatusOK)
+		rw.Write(Rsp("", "email Sent"))
+	}
+}
+
+// Endpoint to signup
+// POST: Roll-int, OTP-string, Password-string
+func ForgotPass(rw http.ResponseWriter, req *http.Request) {
+	if req.Method == "GET" {
+		rw.Write([]byte("Only POST request allowed"))
+	} else {
+
+		// Input from request body
+		dec := json.NewDecoder(req.Body)
+		var t c.User
+		err := dec.Decode(&t)
+
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in Decoding Data"))
+			return
+		}
+
+		// Validate the request if it is empty
+		if valid := c.ValidatePass(t); valid != "" {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(valid, "Bad Request"))
+			return
+		}
+
+		// Hash password
+		t.Password = auth.HashAndSalt([]byte(t.Password))
+
+		// check otp
+		hashotp, otpID, err := db.GetOTP(t.Roll)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in fetching OTP"))
+			return
+		}
+
+		// check if otp is valid
+		if err := auth.Verify(t.OTP, hashotp); err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in Verifying OTP"))
+			return
+		}
+
+		defer db.MarkOTP(otpID)
+
+		// Insert in DB
+		err = db.ChangePassword(t)
+		if err != nil {
+			rw.WriteHeader(http.StatusBadRequest)
+			rw.Write(Rsp(err.Error(), "Error in Changing Pass Up"))
+			return
+		}
+
+		// Everything went well
+		rw.WriteHeader(http.StatusOK)
+		rw.Write(Rsp("", "Password reset succesful"))
 	}
 }
 
@@ -241,9 +368,18 @@ func View(rw http.ResponseWriter, r *http.Request) {
 		rw.Write(Rsp(err.Error(), "Server Error"))
 		return
 	}
+	usr.Password = ""
+
+	wal, err := db.GetWallet(claims.Roll)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		rw.Write(Rsp(err.Error(), "Server Error"))
+		return
+	}	
+
 	rw.WriteHeader(http.StatusOK)
 	res := c.RespData{
-		Message: fmt.Sprintf("Hey, User %s!", usr.Name),
+		Message: fmt.Sprintf("Wallet Money is: %f", wal.Coins),
 		Data: usr,
 	}
 	json.NewEncoder(rw).Encode(res)

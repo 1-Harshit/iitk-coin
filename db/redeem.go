@@ -20,7 +20,7 @@ func GetItem(t int) (c.Item, error) {
 
 func GetItems() ([]c.Item, error) {
 	// query
-	row, err := Mydb.Query(`SELECT "itemNo", "name", "value" FROM "main"."Store" WHERE status=1 ORDER BY value`)
+	row, err := Mydb.Query(`SELECT "itemNo", "name", "value" FROM "main"."Store" WHERE isavailable=1 ORDER BY value`)
 	if err != nil {
 		return nil, err
 	}
@@ -37,16 +37,16 @@ func GetItems() ([]c.Item, error) {
 		AllItems = append(AllItems, entry)
 	}
 	if err := row.Err(); err != nil {
-        return nil, err
-    }
+		return nil, err
+	}
 	return AllItems, nil
 }
 
 // Insert into db
 func DeleteItems(t c.Item) error {
-	
+
 	// Insert in Store
-	insert_item := `UPDATE "main"."Store" SET "status"=0 WHERE "itemNo"=?;`
+	insert_item := `UPDATE "main"."Store" SET "isavailable"=0 WHERE "itemNo"=?;`
 
 	statement, err := Mydb.Prepare(insert_item)
 	if err != nil {
@@ -54,12 +54,12 @@ func DeleteItems(t c.Item) error {
 	}
 
 	_, err = statement.Exec(t.ItemNo)
-	
+
 	return err
 }
 
 func InsertItems(t c.Item) error {
-	
+
 	// Insert in Store
 	insert_item := `INSERT INTO "main"."Store" ("name", "value")
 		VALUES (?, ?)
@@ -71,13 +71,13 @@ func InsertItems(t c.Item) error {
 	}
 
 	_, err = statement.Exec(t.Name, t.Value)
-	
+
 	return err
 }
 
 func ReqRedeem(t c.Redeem) error {
 	row, err := Mydb.Query(`
-		SELECT Redeem.sl, Redeem.itemNo, Store.value
+		SELECT Redeem.redeemID, Redeem.itemNo, Store.value
 		FROM "main"."Redeem" 
 		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
 		WHERE Redeem.status=0 AND Redeem.roll = ?
@@ -99,8 +99,8 @@ func ReqRedeem(t c.Redeem) error {
 		total += entry.Value
 	}
 	if err := row.Err(); err != nil {
-        return err
-    }
+		return err
+	}
 	itm, _ := GetItem(t.ItemNo)
 	coins, _ := GetCoins(t.Roll)
 	if int(coins) < total+itm.Value {
@@ -108,7 +108,7 @@ func ReqRedeem(t c.Redeem) error {
 	}
 
 	// Insert in Store
-	stm := `INSERT INTO "main"."Redeem" ("roll", itemNo")
+	stm := `INSERT INTO "main"."Redeem" ("roll", "itemNo")
 		VALUES (?, ?)
 	;`
 
@@ -118,14 +118,14 @@ func ReqRedeem(t c.Redeem) error {
 	}
 
 	_, err = statement.Exec(t.Roll, t.ItemNo)
-	
+
 	return err
 }
 
 func GetReedem() ([]c.Redeem, error) {
 	// query
 	row, err := Mydb.Query(`
-		SELECT Redeem.sl, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
+		SELECT Redeem.redeemID, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
 		FROM "main"."Redeem" 
 		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
 		WHERE Redeem.status=0 
@@ -147,30 +147,30 @@ func GetReedem() ([]c.Redeem, error) {
 		AllItems = append(AllItems, entry)
 	}
 	if err := row.Err(); err != nil {
-        return nil, err
-    }
+		return nil, err
+	}
 	return AllItems, nil
 }
 
 func RejectRedeem(t int) error {
-	
-	statement, err := Mydb.Prepare(`UPDATE "main"."Redeem" SET "status"=-1 WHERE "sl"=?;`)
+
+	statement, err := Mydb.Prepare(`UPDATE "main"."Redeem" SET "status"=-1 WHERE "redeemID"=?;`)
 	if err != nil {
 		return err
 	}
 
 	_, err = statement.Exec(t)
-	
+
 	return err
 }
 
 func ApproveRedeem(t int) error {
-	
+
 	row := Mydb.QueryRow(`
-		SELECT Redeem.sl, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
+		SELECT Redeem.redeemID, Redeem.time, Redeem.roll, Redeem.itemNo, Store.name, Store.value
 		FROM "main"."Redeem" 
 		INNER JOIN "main"."Store" ON Redeem.itemNo=Store.itemNo
-		WHERE Redeem.status=0 AND Redeem.sl = ?
+		WHERE Redeem.status=0 AND Redeem.redeemID = ?
 	;`, t)
 	redm := c.Redeem{}
 	err := row.Scan(&redm.Id, &redm.Time, &redm.Roll, &redm.ItemNo, &redm.Name, &redm.Value)
@@ -209,19 +209,15 @@ func ApproveRedeem(t int) error {
 		return errors.New("sender wallet doesn't enough capacity")
 	}
 
-
-	txn_stm := `INSERT INTO "main"."Transaction"
-		("from", "to", "sent", "tax", "remarks")
-		VALUES (?, ?, ?, ?, ?);`
-
-	statement2, err := tx.Prepare(txn_stm)
+	// update reedeem status
+	stm := `UPDATE "main"."Redeem" SET "status"=1 WHERE "redeemID"=?;`
+	statement, err = tx.Prepare(stm)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	defer statement2.Close()
 
-	_, err = statement2.Exec(redm.Roll, 200433, redm.Value, redm.Value, "Reedeem amount")
+	_, err = statement.Exec(redm.Id)
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -22,6 +22,10 @@ func main() {
 	mux.HandleFunc("/login", r.Login)
 	mux.HandleFunc("/secretpage", r.SecretPage)
 	
+	// forgotpass
+	mux.HandleFunc("/forgotpass/otp", r.ForgotPassOTP)
+	mux.HandleFunc("/forgotpass", r.ForgotPass)
+	
 	// Reward AH Gensec
 	mux.HandleFunc("/reward", r.Reward)
 	
