@@ -4,7 +4,7 @@ import (
 	c "github.com/1-Harshit/iitk-coin/config"
 	"time"
 	"strings"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 

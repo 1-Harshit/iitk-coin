@@ -1,7 +1,7 @@
 package config
 
 import (
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 )
 
 var JwtKey = []byte("xJ+Ln7CGGswS?EUsq+GJ*6@q%WN9mtLTbN*5kVd2BtTsN8#Gf@9c")
