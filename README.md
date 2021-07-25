@@ -8,6 +8,8 @@ This repository contains the backend code for the IITK Coin which is a reward ba
 
 ### Relevant Links
 
+- [Final Documentation](https://docs.google.com/document/d/16ZVl9a0_EFNMDupLyzjbsJd7bqx9oZ9GRznnxGYbLdI/edit?usp=sharing)
+- [Website](https://1-harshit.github.io/iitk-coin/)
 - [Midterm Evaluation presentation](https://docs.google.com/presentation/d/1kriN-7A3v1RlXUDL5NETX3roJKRMJInptkWofIxY8dg/edit?usp=sharing)
 - [Midterm Documentation](https://docs.google.com/document/d/1bvOWH4k0U-l2pQ1jLWIDzOkJ2wbHNW4jJw7tMWkUV6o/edit?usp=sharing)
 

@@ -327,7 +327,7 @@ func Login(rw http.ResponseWriter, req *http.Request) {
 			json.NewEncoder(rw).Encode(response)
 			return
 		}
-		rw.Write(RspToken("", msg+"This JWT Token Valid for next 5 Minutes", tokenString))
+		rw.Write(RspToken("", msg+"This JWT Token Valid for next 12 Hours", tokenString))
 	}
 }
 
