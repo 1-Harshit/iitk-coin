@@ -7,14 +7,6 @@ import (
 	"time"
 )
 
-
-// Email username
-var From string = "username@gmail.com"
-
-// Email password
-var Password string = "mysecretpassword"
-
-
 // Auth for email
 var auth smtp.Auth
 // Random source

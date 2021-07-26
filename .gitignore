@@ -3,3 +3,6 @@ iitk-coin
 data.db
 temp*
 .*
+mkdocs.yml
+docs
+site

@@ -15,3 +15,10 @@ const InterBatchTax float64 = 0.33
 
 // If someone can reedeem now
 const IsStoreOpen bool = true
+
+// Email for sending OTP
+// Email username
+var From string = "username@gmail.com"
+
+// Email password
+var Password string = "mysecretpassword"
