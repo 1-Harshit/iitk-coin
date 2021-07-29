@@ -20,6 +20,6 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_TOKEN }}
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag 1harshit/iitk-coin:$(date +%s)
+      run: docker build . --file Dockerfile --tag 1harshit/iitk-coin:$(GITHUB_SHA)
     - name: Docker Push
-      run: docker push 1harshit/iitk-coin:$(date +%s)
+      run: docker push 1harshit/iitk-coin:$(GITHUB_SHA)
