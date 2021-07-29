@@ -22,4 +22,4 @@ jobs:
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag 1harshit/iitk-coin:$(date +%s)
     - name: Docker Push
-      run: docker push 1harshit/iitk-coin
+      run: docker push 1harshit/iitk-coin:$(date +%s)
