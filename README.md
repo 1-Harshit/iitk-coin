@@ -29,7 +29,7 @@ This repository contains the backend code for the IITK Coin which is a reward ba
 - OS:           Ubuntu 20.04.2 LTS x86-64    # https://ubuntu.com/download
 - Kernel:       Linux 5.8.0-59-generic       # https://kernel.ubuntu.com/
 - go version:   go1.16.6 linux/amd64         # https://golang.org/dl/
-- text editor:  VSCode    	                  # https://code.visualstudio.com/download
+- text editor:  VSCode                       # https://code.visualstudio.com/download
 - terminal:     Zsh                          # https://ohmyz.sh/
 ```
 
